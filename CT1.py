@@ -1,132 +1,122 @@
 #!/usr/bin/env python3
-import subprocess
 import argparse
 import os
-import time
-import re
+import sys
 from datetime import datetime
 
-def wait_for_test_completion(serial_number, station_name, device_id=None):
+from common import (
+    setupLogging,
+    getComPortByNumber,
+    waitForTestCompletion
+)
+
+from ATPFWDL import atpfwdlProcess
+from SARF import sarfProcess
+
+def main():
     """
-    等待測試完成並從設備拉取日誌檔案
-    
-    Args:
-        serial_number: 設備序號
-        station_name: 測試站名稱
-        device_id: ADB 設備 ID (如果有多個設備連接)
+    * Main function that handles command-line arguments and executes appropriate station processes
+    * Manages the overall workflow of the CT1 Device Management Tool
+    *
+    * @return Boolean indicating success or failure of the process
     """
-    serial_number="00000000000"
-    station_name="PreUI"
-    print(f"等待測試完成... (序號: {serial_number}, 測試站: {station_name})")
+    objParser = argparse.ArgumentParser(description="CT1 Device Management Tool")
+    objParser.add_argument("--SerialNumber", help="Device serial number")
+    objParser.add_argument("--StationName", help="Test station name")
+    objParser.add_argument("--device", help="ADB device ID (if multiple devices connected)")
+    objParser.add_argument("--comport", type=int, help="COM port number (e.g., 3 for COM3)", nargs='?', const=None)
+    objParser.add_argument("--timeout", type=int, default=600, help="Test completion timeout in seconds (default: 300)")
     
-    # 確保輸出目錄存在
-    log_dir = os.path.join(os.getcwd(), "LOG")
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-        print(f"創建輸出目錄: {log_dir}")
-    
-    # 設置 ADB 命令前綴
-    adb_prefix = ['adb']
-    if device_id:
-        adb_prefix.extend(['-s', device_id])
-    
- # 發送測試廣播命令
-    print("發送測試廣播命令...")
-    broadcast_cmd = adb_prefix + [
-        'shell', 
-        'am', 'broadcast', 
-        '-n', 'com.rtk.ct1atptest/.domain.TestControlReceiver', 
-        '-a', 'com.rtk.ct1atptest.PCATP', 
-        '--es', 'SerialNumber', serial_number, 
-        '--es', 'StationName', station_name
-    ]
+    objArgs = objParser.parse_args()
+    objLogger = setupLogging(objArgs.SerialNumber)
+    objStartTime = datetime.now()
+    print(f"=== CT1 Device Management Tool ===")
+    print(f"Start time: {objStartTime.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Parameters: {' '.join(sys.argv[1:])}")
     
     try:
-        broadcast_result = subprocess.run(broadcast_cmd, capture_output=True, text=True)
-        if "Broadcast completed" not in broadcast_result.stdout:
-            print(f"錯誤: 廣播命令可能未成功發送")
-            print(f"輸出: {broadcast_result.stdout}")
-            print(f"錯誤: {broadcast_result.stderr}")
-            return
+        strDLToolPath = os.path.abspath("upgrade_tool_v2.33_for_window")
+        strIQxelPath= os.path.abspath("IQxel")
+        strOSImgPath = "update.img"
+        print(f"Upgrade tool path: {strDLToolPath}")
+        if not os.path.exists(os.path.join(strDLToolPath, "upgrade_tool.exe")):
+            print(f"Error: Upgrade tool not found at path {strDLToolPath}")
+            return False
+        if not os.path.exists(os.path.join(strDLToolPath, "update.img")):
+            print(f"Error: Update image not found at path {strDLToolPath}")
+            return False
+        strComPort = None
+        if objArgs.comport is not None:
+            strComPort = getComPortByNumber(objArgs.comport)
+            if not strComPort:
+                print(f"Error: COM{objArgs.comport} not found")
+                return False
+            print(f"Using COM port: {strComPort}")
+        if objArgs.StationName == "ATPFWDL":
+            if not strComPort:
+                print("Error: ATPFWDL station requires COM port specification")
+                return False
+            bResult = atpfwdlProcess(
+                strComPort=strComPort,
+                strToolPath=strDLToolPath,
+                strImgPath=strOSImgPath,
+                strSerialNumber=objArgs.SerialNumber,
+                strDeviceId=objArgs.device
+            )
+        elif objArgs.StationName == "SARF":
+            if not strComPort:
+                print("Error: SARF station requires COM port specification")
+                return False
+            
+            bResult = sarfProcess(
+                strComPort=strComPort,
+                strIQxelPath=strIQxelPath,
+                strSerialNumber=objArgs.SerialNumber,
+                strDeviceId=objArgs.device,
+                nTimeoutSeconds=objArgs.timeout
+            )
+        elif objArgs.StationName:
+            bResult = waitForTestCompletion(
+                objArgs.SerialNumber,
+                objArgs.StationName,
+                strDeviceId=objArgs.device,
+                nTimeoutSeconds=objArgs.timeout
+            )
+        else:
+            print("Error: StationName parameter is required")
+            print("Usage examples:")
+            print("For ATPFWDL station: python CT1.py --StationName ATPFWDL --comport 3 --SerialNumber 123456")
+            print("For SARF station: python CT1.py --StationName SARF --comport 3 --SerialNumber 123456")
+            print("For other stations: python CT1.py --StationName PreUI --SerialNumber 123456")
+            bResult = False
+            
+        # Print end time and elapsed time
+        objEndTime = datetime.now()
+        objElapsedTime = objEndTime - objStartTime
+        print(f"\n=== Process Completed ===")
+        print(f"End time: {objEndTime.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Elapsed time: {objElapsedTime}")
         
-        print("廣播命令發送成功，開始等待測試完成...")
-    
-        # 設置 logcat 命令來監聽 TEST_RESULT 標籤
-        # 先清除現有的 logcat 緩衝區，確保我們只捕獲新的日誌
-        subprocess.run(adb_prefix + ['logcat', '-c'], check=True)
+        return bResult
         
-        logcat_cmd = adb_prefix + ['logcat', '-v', 'time', 'TEST_RESULT:D', '*:S']
-        
-        # 啟動 logcat 進程
-        process = subprocess.Popen(
-            logcat_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1
-        )
-        
-        print("監聽 logcat 輸出，等待 'ATP Test Finish!!' 訊息...")
-        
-        # 處理 logcat 輸出
-        while True:
-            line = process.stdout.readline()
-            if not line:
-                break
-                
-            # 檢查是否包含目標訊息
-            if "ATP Test Finish!!" in line:
-                print(f"\n偵測到測試完成訊息: {line.strip()}")
-                
-                # 給系統一點時間來確保日誌檔案完全寫入
-                print("等待日誌檔案完成寫入...")
-                time.sleep(2)
-                
-                # 尋找特定的日誌檔案 - 使用您指定的路徑和格式
-                log_path = f"/storage/emulated/0/Android/data/com.rtk.ct1atptest/files/Logs/{station_name}.txt"
-                print(f"檢查日誌檔案: {log_path}")
-                
-                # 檢查檔案是否存在
-                check_cmd = adb_prefix + ['shell', f'test -e "{log_path}" && echo "EXISTS" || echo "NOT_FOUND"']
-                check_result = subprocess.run(check_cmd, capture_output=True, text=True)
-                
-                if "EXISTS" not in check_result.stdout:
-                    print(f"錯誤: 找不到日誌檔案: {log_path}")
-                    return
-                
-                print(f"找到日誌檔案: {log_path}")
-                
-                # 創建目標檔案名稱
-                filename = f"{station_name}.txt"
-                output_path = os.path.join(log_dir, filename)
-                
-                # 使用 adb pull 下載日誌檔案
-                print(f"下載日誌檔案...")
-                pull_cmd = adb_prefix + ['pull', log_path, output_path]
-                pull_result = subprocess.run(pull_cmd, capture_output=True, text=True)
-                
-                if "1 file pulled" in pull_result.stderr:
-                    print(f"成功! 日誌檔案已保存到: {output_path}")
-                else:
-                    print(f"錯誤: 無法下載日誌檔案")
-                    print(f"錯誤訊息: {pull_result.stderr}")
-                
-                break
-    
-    except KeyboardInterrupt:
-        print("\n操作被使用者中斷")
-    except Exception as e:
-        print(f"錯誤: {str(e)}")
     finally:
-        # 確保關閉 logcat 進程
-        if 'process' in locals():
-            process.terminate()
+        # Close logger
+        if 'objLogger' in locals():
+            objLogger.close()
+            # Restore original stdout and stderr
+            sys.stdout = sys.__stdout__
+            sys.stderr = sys.__stderr__
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="等待測試完成並拉取日誌檔案")
-    parser.add_argument("--SerialNumber",  help="設備序號")
-    parser.add_argument("--StationName",  help="測試站名稱")
-    parser.add_argument("--device", help="ADB 設備 ID (如果連接了多個設備)")
-    
-    args = parser.parse_args()
-    wait_for_test_completion(args.SerialNumber, args.StationName, args.device)
+    try:
+        bSuccess = main()
+        if bSuccess:
+            print("Result: PASS")
+            sys.exit(0)
+        else:
+            print("Result: FAIL")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error occurred: {str(e)}")
+        print("Result: FAIL")
+        sys.exit(1)

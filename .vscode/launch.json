@@ -4,16 +4,17 @@
     // 如需詳細資訊，請瀏覽: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "ATPFWDL",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/CT1_DL.py",
+            "program": "${workspaceFolder}/CT1.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
                 "--StationName", "ATPFWDL",
-                "--comport", "16",
+                "--comport", "19",
                 "--SerialNumber", "123456"
             ]
         },
@@ -21,12 +22,25 @@
             "name": "ATPUITEST",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/CT1_DL.py",
+            "program": "${workspaceFolder}/CT1.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
                 "--StationName", "UITest",
                 "--comport", "",
+                "--SerialNumber", "123456"
+            ]
+        },
+        {
+            "name": "SARF",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CT1.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--StationName", "SARF",
+                "--comport", "19",
                 "--SerialNumber", "123456"
             ]
         }
