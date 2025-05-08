@@ -40,7 +40,7 @@
             "justMyCode": true,
             "args": [
                 "--StationName", "SARF",
-                "--comport", "19",
+                "--comport", "13",
                 "--SerialNumber", "123456"
             ]
         }
