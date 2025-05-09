@@ -819,4 +819,33 @@ def getLTERXResult(iLteBand,fRxThreshold):
 
     print(f"FAILED: Exceeded maximum retries ({maxRetry}) without valid result.")
     return None
-    
+
+def loadConfigFile(strConfigFile="./CT1.yaml"):
+    """
+    * Load and parse YAML configuration file for CT1 testing system
+    * Provides centralized configuration management for test parameters and thresholds
+    * Falls back to default values if file is not found or cannot be parsed
+    *
+    * @param strConfigFile Path to the YAML configuration file (default: "CT1.yaml")
+    * @return Dictionary containing configuration values, or None if loading fails
+    """
+    import yaml
+    try:
+        if os.path.exists(strConfigFile):
+            print(f"Loading configuration from: {strConfigFile}")
+            with open(strConfigFile, 'r') as f:
+                dictConfig = yaml.safe_load(f)
+                
+            if not dictConfig:
+                print("Warning: Config file is empty, using default values")
+                return None
+                
+            print("Configuration loaded successfully")
+            return dictConfig
+        else:
+            print(f"Warning: Config file '{strConfigFile}' not found, using default values")
+            return None
+    except Exception as e:
+        print(f"Error loading config file: {str(e)}")
+        print("Using default configuration values")
+        return None

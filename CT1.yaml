@@ -1,0 +1,51 @@
+lte_test:
+  band_1:
+    tx_power:
+      min: 15.0   
+      max: 25.0   
+    rx_sensitivity:
+      min: -60.0  
+      max: -45.0  
+  
+  band_26:
+    tx_power:
+      min: 10.0
+      max: 23.0
+    rx_sensitivity:
+      min: -60.0
+      max: -45.0
+
+wifi_test:
+  signal_power:
+    min: -40.0  
+    max: -10.0  
+
+bluetooth_test:
+  signal_power:
+    min: -70.0  
+    max: -30.0  
+
+timeouts:
+  device_boot: 15 
+  lte_test: 30    
+  wifi_test: 30    
+  bt_test: 30      
+  firmware_update: 90  
+  test_completion: 300  
+gpib_commands:
+  lte_band_1:
+    - "CALLPROC OFF"
+    - "BANDWIDTH 10MHZ"
+    - "BAND 1"
+    - "TESTPRM TX_MAXPWR_Q_1"
+    - "PWR_AVG 20"
+  
+  lte_band_26:
+    - "CALLPROC OFF"
+    - "BANDWIDTH 10MHZ"
+    - "BAND 26"
+    - "TESTPRM TX_MAXPWR_Q_1"
+    - "PWR_AVG 20"
+  
+  rx_test:
+    - "TESTPRM RX_MAX"
